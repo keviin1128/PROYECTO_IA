@@ -1,4 +1,6 @@
 import pygame
+import sys
+from boton import Button
 
 # Inicializar Pygame
 pygame.init()
@@ -10,6 +12,8 @@ VERDE = (0, 255, 0)
 ROJO = (255, 0, 0)
 AZUL = (0, 0, 255)
 AMARILLO = (255, 255, 0)
+
+FONT = 'font/minecraft_font.ttf'
 
 # Dimensiones de la ventana
 ANCHO_VENTANA = 600
@@ -33,8 +37,6 @@ imagen_galleta = pygame.image.load("imagenes/galleta.jpeg")
 imagen_rana_elmo = pygame.image.load("imagenes/ranayelmo.jpeg")
 imagen_rana_galleta = pygame.image.load("imagenes/rene_come_galleta.jpeg")
 
-
-
 # Escalar las imágenes al tamaño adecuado
 imagen_rene = pygame.transform.scale(imagen_rene, (TAMANO_CELDA, TAMANO_CELDA))
 imagen_piggy = pygame.transform.scale(imagen_piggy, (TAMANO_CELDA, TAMANO_CELDA))
@@ -42,8 +44,6 @@ imagen_elmo = pygame.transform.scale(imagen_elmo, (TAMANO_CELDA, TAMANO_CELDA))
 imagen_galleta = pygame.transform.scale(imagen_galleta, (TAMANO_CELDA, TAMANO_CELDA))
 imagen_rana_elmo = pygame.transform.scale(imagen_rana_elmo, (TAMANO_CELDA, TAMANO_CELDA))  
 imagen_rana_galleta = pygame.transform.scale(imagen_rana_galleta, (TAMANO_CELDA, TAMANO_CELDA))
-
-
 
 # Definir el laberinto
 laberinto = [
@@ -55,14 +55,24 @@ laberinto = [
     ['R', ' ', '#', ' ', 'P', ' ']   # R = René, P = Piggy
 ]
 
+# Posiciones de René y Elmo
+posicion_rene = (5, 0)  # Posición inicial de René
+posicion_elmo = (0, 5)  # Posición de Elmo
+posicion_piggy = (5, 4)
+posicion_galleta = (2, 1)
+
+# Movimientos posibles: arriba, abajo, izquierda, derecha
+movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+# Función para comprobar si una posición está dentro de los límites del laberinto
+def es_valida(fila, columna, laberinto):
+    return 0 <= fila < len(laberinto) and 0 <= columna < len(laberinto[0]) and laberinto[fila][columna] != '#'
+
 # Función para dibujar el laberinto
 def dibujar_laberinto(ventana, laberinto):
     for fila in range(FILAS):
         for columna in range(COLUMNAS):
-            # Obtener el contenido de la celda
             celda = laberinto[fila][columna]
-
-            # Dibujar el contenido de la celda
             if celda == '#':  # Obstáculo
                 pygame.draw.rect(ventana, NEGRO, 
                                  (columna * TAMANO_CELDA, fila * TAMANO_CELDA, 
@@ -79,36 +89,20 @@ def dibujar_laberinto(ventana, laberinto):
                 pygame.draw.rect(ventana, BLANCO, 
                                  (columna * TAMANO_CELDA, fila * TAMANO_CELDA, 
                                   TAMANO_CELDA, TAMANO_CELDA))
-            # Dibujar el borde de la celda
             pygame.draw.rect(ventana, NEGRO, 
                              (columna * TAMANO_CELDA, fila * TAMANO_CELDA, 
                               TAMANO_CELDA, TAMANO_CELDA), 1)
 
-# Posiciones de René y Elmo
-posicion_rene = (5, 0)  # Posición inicial de René
-posicion_elmo = (0, 5)  # Posición de Elmo
-posicion_piggy = (5, 4)
-posicion_galleta = (2 , 1)
-
-
-# Movimientos posibles: arriba, abajo, izquierda, derecha
-movimientos = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-# Función para comprobar si una posición está dentro de los límites del laberinto
-def es_valida(fila, columna, laberinto):
-    return 0 <= fila < len(laberinto) and 0 <= columna < len(laberinto[0]) and laberinto[fila][columna] != '#'
-
+# Función para solicitar el límite de profundidad
 def solicitar_limite_profundidad(ventana):
-    fuente = pygame.font.SysFont(None, 48)
+    fuente = pygame.font.Font(FONT, 20)
     entrada = ""
     limite_ingresado = False
 
     while not limite_ingresado:
-        ventana.fill(BLANCO)  # Limpiar la pantalla
-        texto = fuente.render("Ingrese el límite de profundidad (1-20):", True, NEGRO)
+        ventana.fill(BLANCO)
+        texto = fuente.render("Ingrese el limite de profundidad (1-20):", True, NEGRO)
         ventana.blit(texto, (50, 50))
-
-        # Mostrar el límite ingresado hasta ahora
         limite_texto = fuente.render(entrada, True, NEGRO)
         ventana.blit(limite_texto, (50, 150))
 
@@ -116,151 +110,101 @@ def solicitar_limite_profundidad(ventana):
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 exit()
-
             if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_RETURN:  # Si se presiona Enter
+                if evento.key == pygame.K_RETURN:
                     if entrada.isdigit():
                         limite = int(entrada)
-                        if 1 <= limite <= 20:  # Verificar el rango
+                        if 1 <= limite <= 20:
                             return limite
-                    entrada = ""  # Reiniciar la entrada
-                elif evento.key == pygame.K_BACKSPACE:  # Manejar Backspace
-                    entrada = entrada[:-1]  # Eliminar último carácter
-                elif len(entrada) < 2:  # Limitar la longitud de la entrada
-                    entrada += evento.unicode  # Agregar carácter a la entrada
+                    entrada = ""
+                elif evento.key == pygame.K_BACKSPACE:
+                    entrada = entrada[:-1]
+                elif len(entrada) < 2:
+                    entrada += evento.unicode
 
-        # Redibujar la ventana
         pygame.display.flip()
 
 # Implementación de la búsqueda limitada por profundidad (DLS)
 def busqueda_profundidad_limitada(laberinto, inicio, objetivo, limite_profundidad):
     def dls(posicion_actual, objetivo, profundidad_actual, visitados):
-        # Si hemos alcanzado el límite de profundidad, no podemos continuar
         if profundidad_actual == limite_profundidad:
             return None
-
-        # Si encontramos al objetivo, devolvemos el camino
         if posicion_actual == objetivo:
             return [posicion_actual]
 
         fila_actual, columna_actual = posicion_actual
-        visitados.add(posicion_actual)  # Marcamos la posición como visitada
-        caminos = []  # Para almacenar todos los caminos encontrados
+        visitados.add(posicion_actual)
+        caminos = []
 
         for movimiento in movimientos:
             nueva_fila = fila_actual + movimiento[0]
             nueva_columna = columna_actual + movimiento[1]
 
-            # Verificamos si la nueva posición es válida y no ha sido visitada
             if es_valida(nueva_fila, nueva_columna, laberinto) and (nueva_fila, nueva_columna) not in visitados:
                 nuevo_estado = (nueva_fila, nueva_columna)
-
-                # Llamamos recursivamente a DLS incrementando el número de pasos
                 resultado = dls(nuevo_estado, objetivo, profundidad_actual + 1, visitados)
-
-                # Si se encuentra un camino válido, se agrega a la lista de caminos
                 if resultado:
                     caminos.append([posicion_actual] + resultado)
 
-        visitados.remove(posicion_actual)  # Desmarcar la posición después de explorar
-
-        # Devolvemos el camino más largo encontrado (si existe) dentro del límite de profundidad
+        visitados.remove(posicion_actual)
         if caminos:
-            return max(caminos, key=len)  # Elegir el camino más largo
-        return None  # No se encontró un camino dentro del límite de profundidad
+            return max(caminos, key=len)
+        return None
 
-    # Inicializamos el conjunto de posiciones visitadas
     visitados = set()
     return dls(inicio, objetivo, 0, visitados)
 
-# Solicitar el límite de profundidad al inicio
-limite_profundidad = solicitar_limite_profundidad(ventana)
-
-# Lógica del juego después de obtener el límite de profundidad
-camino = busqueda_profundidad_limitada(laberinto, posicion_rene, posicion_elmo, limite_profundidad)
-
-if camino:
-    print("Camino encontrado:", camino)
-else:
-    print("No se encontró un camino dentro del límite de profundidad.")
-
+# Función para mover a René
 comio_galleta = False  
 def mover_rene(laberinto, camino):
-    global comio_galleta  # Usar la bandera global
+    global comio_galleta
     for paso in camino:
         fila, columna = paso
-
-        # Limpiar la posición anterior de René
         for fila_laberinto in range(len(laberinto)):
-            for columna_laberinto in range(len(laberinto[0])):
+            for columna_laberinto in range(len(laberinto[0])): 
                 if laberinto[fila_laberinto][columna_laberinto] == 'R':
-                    laberinto[fila_laberinto][columna_laberinto] = ' '  # Limpiar la posición anterior
+                    laberinto[fila_laberinto][columna_laberinto] = ' '
 
-        # Actualizar la posición de René en el laberinto
         laberinto[fila][columna] = 'R'
-
-        # Verificar si René ha llegado a la galleta
         if (fila, columna) == tuple(posicion_galleta):
-            comio_galleta = True  # Cambiar el estado si se encuentra con la galleta
+            comio_galleta = True
 
-        # Redibujar el laberinto y los objetos en él
         dibujar_laberinto(ventana, laberinto)
-
-        # Seleccionar la imagen de René según si ha comido galleta o no
         if comio_galleta:
             ventana.blit(imagen_rana_galleta, (columna * TAMANO_CELDA, fila * TAMANO_CELDA))
         else:
             ventana.blit(imagen_rene, (columna * TAMANO_CELDA, fila * TAMANO_CELDA))
 
-        # Redibujar Piggy y la galleta
         ventana.blit(imagen_piggy, (posicion_piggy[1] * TAMANO_CELDA, posicion_piggy[0] * TAMANO_CELDA))
         ventana.blit(imagen_galleta, (posicion_galleta[1] * TAMANO_CELDA, posicion_galleta[0] * TAMANO_CELDA))
         
         pygame.display.flip()
-        pygame.time.delay(500)  # Pausa para que el movimiento sea visible
+        pygame.time.delay(500)
 
-        # Verificar si René ha llegado a Elmo
-        if (fila, columna) == posicion_elmo:  # Si René está en la posición de Elmo
+        if (fila, columna) == posicion_elmo:
             ventana.blit(imagen_rana_elmo, (columna * TAMANO_CELDA, fila * TAMANO_CELDA))
             pygame.display.flip()
             pygame.time.delay(500)
-            break  # Detener el bucle porque René ha llegado a Elmo
+            break
 
-    # Al final del movimiento, si ha comido la galleta, reiniciar la bandera
     if comio_galleta:
-        # Reiniciar la bandera para la próxima iteración
-        comio_galleta = False  # Reiniciar la bandera para la próxima iteración
-        # Redibujar el laberinto para mostrar la imagen original en la siguiente iteración
+        comio_galleta = False
         dibujar_laberinto(ventana, laberinto)
-        ventana.blit(imagen_rene, (columna * TAMANO_CELDA, fila * TAMANO_CELDA))  # Asegurarse de que se dibuje la imagen original
-        pygame.display.flip()  # Actualizar la pantalla
+        ventana.blit(imagen_rene, (columna * TAMANO_CELDA, fila * TAMANO_CELDA))
+        pygame.display.flip()
 
-
-# Bucle para ejecutar el juego
-ejecutando = True
-
-# Mover a René por el camino encontrado
-if camino:
-    mover_rene(laberinto, camino)
-
+# Función para mostrar mensaje de éxito
 def mostrar_mensaje_exito():
-    fuente = pygame.font.SysFont(None, 48)
+    fuente = pygame.font.Font(FONT, 20)
     ventana.fill(BLANCO)
-    
-    # Mensaje de éxito
     mensaje = fuente.render("¡René encontró a Elmo!", True, VERDE)
     ventana.blit(mensaje, (50, 50))
-    
-    # Botón para reiniciar
     boton_rect = pygame.Rect(150, 200, 300, 100)
     pygame.draw.rect(ventana, AZUL, boton_rect)
     boton_texto = fuente.render("Volver a jugar", True, BLANCO)
     ventana.blit(boton_texto, (200, 230))
-
-    # Actualizar la pantalla
     pygame.display.flip()
     
-    # Esperar a que se haga clic en el botón
     esperando_click = True
     while esperando_click:
         for evento in pygame.event.get():
@@ -268,48 +212,122 @@ def mostrar_mensaje_exito():
                 pygame.quit()
                 exit()
             if evento.type == pygame.MOUSEBUTTONDOWN:
-                if boton_rect.collidepoint(evento.pos):  # Si se hace clic en el botón
+                if boton_rect.collidepoint(evento.pos):
                     esperando_click = False
 
-while ejecutando:
-    # Solicitar el límite de profundidad al inicio
-    limite_profundidad = solicitar_limite_profundidad(ventana)
-
-    # Lógica del juego después de obtener el límite de profundidad
-    camino = busqueda_profundidad_limitada(laberinto, posicion_rene, posicion_elmo, limite_profundidad)
-
-    if camino:
-        print("Camino encontrado:", camino)
-        mover_rene(laberinto, camino)  # Mover a René por el camino encontrado
-        mostrar_mensaje_exito()  # Mostrar mensaje de éxito
-    else:
-        print("No se encontró un camino dentro del límite de profundidad.")
-
-    # Esperar un momento antes de reiniciar
-    pygame.time.delay(2500)  
-
-    # Limpiar el laberinto y volver a la posición inicial
+# Función para limpiar el laberinto
+def limpiar_laberinto():
     laberinto[5][0] = 'R'  
     laberinto[0][5] = 'E'  
     laberinto[5][4] = "P"
     laberinto[2][1] = "G"
 
-    # Limpiar la ventana y volver a dibujar el laberinto
-    ventana.fill(BLANCO)
-    dibujar_laberinto(ventana, laberinto)
-    pygame.display.flip()
-
-    # Redibujar las imágenes de Piggy y la galleta en sus posiciones
+# Función para reiniciar posiciones
+def reiniciar_posiciones():
     ventana.blit(imagen_piggy, (posicion_piggy[1] * TAMANO_CELDA, posicion_piggy[0] * TAMANO_CELDA))
     ventana.blit(imagen_galleta, (posicion_galleta[1] * TAMANO_CELDA, posicion_galleta[0] * TAMANO_CELDA))
     ventana.blit(imagen_rana_elmo, (posicion_elmo[1] * TAMANO_CELDA, posicion_elmo[0] * TAMANO_CELDA)) 
-    
-    pygame.display.flip() 
+    pygame.display.flip()
 
-    # Comprobar eventos para salir
-    for evento in pygame.event.get():
-        if evento.type == pygame.QUIT:
-            ejecutando = False
+# Función principal del juego
+def jugar():
+    global en_menu
+    limite_profundidad = solicitar_limite_profundidad(ventana)
+    camino = busqueda_profundidad_limitada(laberinto, posicion_rene, posicion_elmo, limite_profundidad)
+
+    if camino:
+        print("Camino encontrado:", camino)
+        mover_rene(laberinto, camino)
+        mostrar_mensaje_exito()
+    else:
+        print("No se encontró un camino dentro del límite de profundidad.")
+    
+    limpiar_laberinto()
+    reiniciar_posiciones()
+    en_menu = True
+
+# Interfaz gráfica
+boton_jugar = Button(200, 100, "Jugar")
+boton_nosotros = Button(200, 175, "Creditos")
+boton_salir = Button(200, 250, "Salir")
+boton_volver = Button(200, 500, "Volver")
+
+# Variable para controlar el estado del juego
+en_menu = True
+en_nosotros = False
+
+# Función para actualizar el estado del juego
+def update(events):
+    if en_menu:
+        boton_jugar.update()
+        boton_nosotros.update()
+        boton_salir.update()
+    elif en_nosotros:
+        boton_volver.update()
+
+# Función para dibujar en la ventana
+def draw():
+    if en_menu:
+        ventana.fill(BLANCO)
+        boton_jugar.draw(ventana)
+        boton_nosotros.draw(ventana)
+        boton_salir.draw(ventana)
+    elif en_nosotros:
+        nosotros()
+    pygame.display.flip()
+
+
+def nosotros():
+    ventana.fill(BLANCO)
+    fuente = pygame.font.Font(FONT, 24)
+    creditos = [
+        "Desarrollado por:",
+        "Luis F. Hernandez - 2160189",
+        "Juan E. Vargas - 2160191",
+        "Universidad del Valle",
+    ]
+    y = 50
+    for linea in creditos:
+        texto = fuente.render(linea, True, NEGRO)
+        ventana.blit(texto, (50, y))
+        y += 50
+    boton_volver.draw(ventana)
+    pygame.display.flip()
+    
+# Función para manejar eventos
+def manejar_eventos(events):
+    global en_menu
+    global en_nosotros
+    for e in events:
+        if e.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if en_menu:
+            if boton_jugar.clicked:
+                jugar()
+            if boton_nosotros.clicked:
+                en_menu = False
+                en_nosotros = True
+            if boton_salir.clicked:
+                pygame.quit()
+                sys.exit()
+        elif en_nosotros:
+            if boton_volver.clicked:
+                en_nosotros = False
+                en_menu = True
+                boton_nosotros.reset()
+                
+        else:
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                en_menu = True
+
+# Bucle principal
+while True:
+    events = pygame.event.get()
+    manejar_eventos(events)
+    update(events)
+    draw()
+    reloj.tick(60)
 
 # Salir del juego
 pygame.quit()
