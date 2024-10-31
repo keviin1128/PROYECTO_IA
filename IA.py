@@ -45,15 +45,52 @@ imagen_galleta = pygame.transform.scale(imagen_galleta, (TAMANO_CELDA, TAMANO_CE
 imagen_rana_elmo = pygame.transform.scale(imagen_rana_elmo, (TAMANO_CELDA, TAMANO_CELDA))  
 imagen_rana_galleta = pygame.transform.scale(imagen_rana_galleta, (TAMANO_CELDA, TAMANO_CELDA))
 
-# Definir el laberinto
-laberinto = [
-    [' ', ' ', ' ', '#', ' ', 'E'],  # E = Elmo
+# MAPAS
+mapa1 = [
+    [' ', ' ', ' ', '#', ' ', 'E'],
     ['#', '#', ' ', '#', ' ', '#'],
-    [' ', ' ', 'G', ' ', ' ', ' '],  # G = Galleta
+    [' ', ' ', 'G', ' ', ' ', ' '],
     [' ', '#', '#', ' ', '#', ' '],
     [' ', ' ', ' ', ' ', ' ', ' '],
-    ['R', ' ', '#', ' ', 'P', ' ']   # R = René, P = Piggy
+    ['R', ' ', '#', ' ', 'P', ' ']
 ]
+
+mapa2 = [
+    ['#', ' ', ' ', ' ', ' ', 'E'],
+    ['#', '#', '#', '#', ' ', '#'],
+    [' ', ' ', 'G', '#', ' ', ' '],
+    [' ', '#', ' ', ' ', ' ', ' '],
+    ['#', ' ', '#', '#', '#', ' '],
+    ['R', ' ', ' ', ' ', 'P', ' ']
+]
+
+mapa3 = [
+    [' ', '#', ' ', '#', ' ', 'E'],
+    [' ', ' ', ' ', '#', ' ', '#'],
+    ['#', 'G', ' ', ' ', ' ', ' '],
+    [' ', '#', '#', ' ', '#', ' '],
+    [' ', ' ', ' ', ' ', ' ', ' '],
+    ['R', ' ', '#', ' ', 'P', ' ']
+]
+
+# Lista de mapas
+mapas = [mapa1, mapa2, mapa3]
+laberinto = mapas[0]  # Inicializa el laberinto con el primer mapa
+en_seleccion_mapa = False  # Agrega esta línea para inicializar la variable
+
+
+def seleccionar_mapa():
+    print("Selecciona un mapa:")
+    for i, mapa in enumerate(mapas, start=1):
+        print(f"{i}. Mapa {i}")
+
+    seleccion = int(input("Introduce el número del mapa que deseas: ")) - 1
+    if 0 <= seleccion < len(mapas):
+        return mapas[seleccion]
+    else:
+        print("Selección no válida. Se seleccionará el Mapa 1 por defecto.")
+        return mapas[0]
+
 
 # Posiciones de René y Elmo
 posicion_rene = (5, 0)  # Posición inicial de René
@@ -93,66 +130,70 @@ def dibujar_laberinto(ventana, laberinto):
                              (columna * TAMANO_CELDA, fila * TAMANO_CELDA, 
                               TAMANO_CELDA, TAMANO_CELDA), 1)
 
-# Función para solicitar el límite de profundidad
-def solicitar_limite_profundidad(ventana):
-    fuente = pygame.font.Font(FONT, 20)
-    entrada = ""
-    limite_ingresado = False
-
-    while not limite_ingresado:
-        ventana.fill(BLANCO)
-        texto = fuente.render("Ingrese el limite de profundidad (1-20):", True, NEGRO)
-        ventana.blit(texto, (50, 50))
-        limite_texto = fuente.render(entrada, True, NEGRO)
-        ventana.blit(limite_texto, (50, 150))
-
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_RETURN:
-                    if entrada.isdigit():
-                        limite = int(entrada)
-                        if 1 <= limite <= 20:
-                            return limite
-                    entrada = ""
-                elif evento.key == pygame.K_BACKSPACE:
-                    entrada = entrada[:-1]
-                elif len(entrada) < 2:
-                    entrada += evento.unicode
-
-        pygame.display.flip()
-
-# Implementación de la búsqueda limitada por profundidad (DLS)
-def busqueda_profundidad_limitada(laberinto, inicio, objetivo, limite_profundidad):
-    def dls(posicion_actual, objetivo, profundidad_actual, visitados):
-        if profundidad_actual == limite_profundidad:
+def busqueda_profundidad_limitada(laberinto, inicio, objetivo, max_profundidad):
+    # Algoritmo de DFS Limitado usando una lista para almacenar las posiciones visitadas
+    def dls(posicion_actual, objetivo, profundidad_actual, visitados, arbol):
+        # Si alcanzamos el límite de profundidad, no buscamos más
+        if profundidad_actual >= limite_profundidad:
             return None
+        
+        # Si encontramos el objetivo, devolvemos el camino
         if posicion_actual == objetivo:
             return [posicion_actual]
+        
+        # Agregar la posición actual a los visitados
+        visitados.append(posicion_actual)
 
-        fila_actual, columna_actual = posicion_actual
-        visitados.add(posicion_actual)
-        caminos = []
+        # Inicializar el nodo en el árbol
+        if posicion_actual not in arbol:
+            arbol[posicion_actual] = []
 
+        # Explorando movimientos posibles
         for movimiento in movimientos:
-            nueva_fila = fila_actual + movimiento[0]
-            nueva_columna = columna_actual + movimiento[1]
+            nueva_fila = posicion_actual[0] + movimiento[0]
+            nueva_columna = posicion_actual[1] + movimiento[1]
+            nuevo_estado = (nueva_fila, nueva_columna)
 
-            if es_valida(nueva_fila, nueva_columna, laberinto) and (nueva_fila, nueva_columna) not in visitados:
-                nuevo_estado = (nueva_fila, nueva_columna)
-                resultado = dls(nuevo_estado, objetivo, profundidad_actual + 1, visitados)
+            # Verifica que la nueva posición sea válida y no sea un estado ya visitado
+            if es_valida(nueva_fila, nueva_columna, laberinto) and nuevo_estado not in visitados:
+                # Agregar el nuevo estado al árbol de búsqueda
+                arbol[posicion_actual].append(nuevo_estado)
+
+                # Llamada recursiva con el nuevo estado
+                resultado = dls(nuevo_estado, objetivo, profundidad_actual + 1, visitados, arbol)
+
+                # Si encontramos un resultado, lo retornamos
                 if resultado:
-                    caminos.append([posicion_actual] + resultado)
-
-        visitados.remove(posicion_actual)
-        if caminos:
-            return max(caminos, key=len)
+                    return [posicion_actual] + resultado
+        
+        # Eliminar la posición actual de visitados después de explorar
+        visitados.pop()
         return None
 
-    visitados = set()
-    return dls(inicio, objetivo, 0, visitados)
+    for limite_profundidad in range(1, max_profundidad + 1):
+        visitados = []  # Reiniciar la lista de visitados para cada profundidad
+        arbol = {}
+        resultado = dls(inicio, objetivo, 0, visitados, arbol)
+
+        # Imprimir el árbol completo
+        print(f"Árbol completo para profundidad {limite_profundidad}:")
+        for nodo, hijos in arbol.items():
+            print(f"{nodo}: {hijos}")
+
+        # Si se encuentra un resultado, retornarlo y podar el árbol
+        if resultado:
+            arbol_podado = podar_arbol(arbol, resultado)
+            return resultado, arbol_podado
+
+    return None, {}  # Si no se encontró camino dentro del límite de profundidad
+
+def podar_arbol(arbol, camino_valido):
+    arbol_podado = {}
+    for i in range(len(camino_valido) - 1):
+        nodo = camino_valido[i]
+        siguiente_nodo = camino_valido[i + 1]
+        arbol_podado[nodo] = [siguiente_nodo]
+    return arbol_podado
 
 # Función para mover a René
 comio_galleta = False  
@@ -232,19 +273,26 @@ def reiniciar_posiciones():
 # Función principal del juego
 def jugar():
     global en_menu
-    limite_profundidad = solicitar_limite_profundidad(ventana)
-    camino = busqueda_profundidad_limitada(laberinto, posicion_rene, posicion_elmo, limite_profundidad)
+    global en_nosotros
+    
+    # Configuración inicial del juego
+    posicion_rene = (5, 0)  # Posición inicial de René
+    posicion_elmo = (0, 5)  # Posición de Elmo
+    max_profundidad = 20  # Establece el límite máximo de profundidad
+    
+    # Realiza la búsqueda de profundidad limitada
+    camino, arbol_podado = busqueda_profundidad_limitada(laberinto, posicion_rene, posicion_elmo, max_profundidad)
 
     if camino:
         print("Camino encontrado:", camino)
-        mover_rene(laberinto, camino)
-        mostrar_mensaje_exito()
+        mover_rene(laberinto, camino)  # Mueve a René por el laberinto
+        mostrar_mensaje_exito()  # Muestra el mensaje de éxito
     else:
         print("No se encontró un camino dentro del límite de profundidad.")
-    
-    limpiar_laberinto()
-    reiniciar_posiciones()
-    en_menu = True
+
+    limpiar_laberinto()  # Limpia el laberinto para el próximo juego
+    reiniciar_posiciones()  # Reinicia las posiciones de los personajes
+    en_menu = True  # Regresar al menú principal
 
 # Interfaz gráfica
 boton_jugar = Button(200, 100, "Jugar")
@@ -264,6 +312,8 @@ def update(events):
         boton_salir.update()
     elif en_nosotros:
         boton_volver.update()
+    elif en_seleccion_mapa:
+        pass  # No necesitas botones en la selección de mapa
 
 # Función para dibujar en la ventana
 def draw():
@@ -274,8 +324,9 @@ def draw():
         boton_salir.draw(ventana)
     elif en_nosotros:
         nosotros()
+    elif en_seleccion_mapa:
+        mostrar_seleccion_mapa()  # Mostrar la selección de mapa
     pygame.display.flip()
-
 
 def nosotros():
     ventana.fill(BLANCO)
@@ -295,31 +346,71 @@ def nosotros():
     pygame.display.flip()
     
 # Función para manejar eventos
+
+# Modificación en la función manejar_eventos para manejar los botones de selección de mapa correctamente
 def manejar_eventos(events):
     global en_menu
     global en_nosotros
+    global en_seleccion_mapa
+    global laberinto
+
     for e in events:
         if e.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+
         if en_menu:
             if boton_jugar.clicked:
-                jugar()
+                en_menu = False
+                en_seleccion_mapa = True  # Cambia al estado de selección de mapa
             if boton_nosotros.clicked:
                 en_menu = False
                 en_nosotros = True
             if boton_salir.clicked:
                 pygame.quit()
                 sys.exit()
+
+        elif en_seleccion_mapa:
+            # Aquí verifica cada botón de mapa
+            for i in range(len(mapas)):
+                boton_mapa = Button(200, 100 + i * 75, f"Mapa {i + 1}")
+                boton_mapa.update()  # Actualiza el estado del botón
+                if boton_mapa.clicked:
+                    laberinto = mapas[i]  # Selecciona el mapa
+                    jugar()  # Inicia el juego con el mapa seleccionado
+
+            # Botón de volver al menú
+            boton_volver_menu = Button(200, 100 + len(mapas) * 75, "Volver al menú")
+            boton_volver_menu.update()  # Asegúrate de que se actualice
+            if boton_volver_menu.clicked:
+                en_seleccion_mapa = False
+                en_menu = True  # Regresar al menú principal
+
         elif en_nosotros:
             if boton_volver.clicked:
                 en_nosotros = False
-                en_menu = True
-                boton_nosotros.reset()
-                
-        else:
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
-                en_menu = True
+                en_menu = True  # Regresar al menú principal
+
+
+# Función para mostrar la selección de mapa
+def mostrar_seleccion_mapa():
+    ventana.fill(BLANCO)
+    fuente = pygame.font.Font(FONT, 24)
+
+    # Títulos
+    titulo = fuente.render("Selecciona un mapa:", True, NEGRO)
+    ventana.blit(titulo, (150, 50))
+
+    # Dibujar botones para cada mapa
+    for i, mapa in enumerate(mapas):
+        boton_mapa = Button(200, 100 + i * 75, f"Mapa {i + 1}")
+        boton_mapa.draw(ventana)
+
+    # Botón de volver al menú
+    boton_volver_menu = Button(200, 100 + len(mapas) * 75, "Volver al menú")
+    boton_volver_menu.draw(ventana)
+
+    pygame.display.flip()
 
 # Bucle principal
 while True:
