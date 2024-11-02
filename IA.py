@@ -422,3 +422,7 @@ while True:
 
 # Salir del juego
 pygame.quit()
+
+
+
+#HPTA SUEÑO HACER ESTO AHG
